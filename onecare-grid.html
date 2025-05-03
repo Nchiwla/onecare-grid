@@ -1,0 +1,193 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>One Care Grid</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f4f7f9;
+      color: #1f2937;
+      padding: 20px;
+      display: flex;
+      flex-direction: row;
+      gap: 24px;
+    }
+    .grid-container {
+      width: 70%;
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 6px;
+    }
+    .grid-cell {
+      background-color: #ffffff;
+      border: 1px solid #b2dfdb;
+      border-radius: 4px;
+      padding: 10px;
+      text-align: center;
+      cursor: pointer;
+      position: relative;
+      min-height: 60px;
+      transition: background 0.3s ease;
+    }
+    .grid-cell:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #00796b;
+      color: white;
+      padding: 6px 10px;
+      font-size: 0.85em;
+      border-radius: 4px;
+      white-space: nowrap;
+      z-index: 10;
+    }
+    .grid-cell.clicked {
+      background: #26a69a;
+      color: white;
+    }
+    .grid-header {
+      background: #00796b;
+      color: white;
+      padding: 10px;
+      font-size: 1.1em;
+      text-align: center;
+      font-weight: bold;
+    }
+    .sidebar {
+      flex: 1;
+      background: white;
+      padding: 20px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+    .summary {
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .logos {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 12px;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+    .logo {
+      width: 32px;
+      height: 32px;
+      opacity: 0.4;
+      animation: pop 0.3s ease;
+    }
+    .logo.onecare {
+      opacity: 1;
+      border: 2px solid #26a69a;
+      border-radius: 6px;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pop {
+      from { transform: scale(0.7); opacity: 0; }
+      to { transform: scale(1); opacity: 0.4; }
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+  <div class="grid-container" id="serviceGrid"></div>
+  <div class="sidebar">
+    <h3>Average Market Cost</h3>
+    <div class="summary">$<span id="marketTotal">0</span></div>
+    <div class="logos" id="logoBar"></div>
+    <h3 style="margin-top: 20px;">One Care Saving</h3>
+    <div class="summary" style="color: #2e7d32">$<span id="savings">0</span> (<span id="percentSaved">0%</span>)</div>
+    <h3 style="margin-top: 20px;">Your One Care Cost</h3>
+    <div class="summary"><img src="onecare.png" alt="One Care" class="logo onecare" style="vertical-align: middle;"> $<span id="oneCareTotal">0</span></div>
+  </div>
+  <script>
+    const services = [
+      { name: 'Allied Health', category: 'Child Care', oneCare: 90, market: 108, logo: 'guardian.png' },
+      { name: 'Pet Grooming', category: 'Pet Care', oneCare: 60, market: 72, logo: 'greencross.png' },
+      { name: 'Domestic Help', category: 'Everyday', oneCare: 70, market: 84, logo: 'jims.png' },
+      { name: 'Mobility Aids', category: 'Aged Care', oneCare: 95, market: 114, logo: 'bupa.png' },
+      { name: 'Plan Management', category: 'NDIS', oneCare: 100, market: 120, logo: 'ndis.png' },
+      { name: 'Student Tutoring', category: 'Students', oneCare: 60, market: 72, logo: 'openuni.png' }
+    ];
+
+    const categories = ['Child Care', 'Pet Care', 'Everyday', 'Aged Care', 'NDIS', 'Students'];
+    const grid = document.getElementById('serviceGrid');
+    const logoBar = document.getElementById('logoBar');
+    let totalOneCare = 0;
+    let totalMarket = 0;
+    let clickCounts = Array(services.length).fill(0);
+
+    // Add headers
+    categories.forEach(cat => {
+      const header = document.createElement('div');
+      header.className = 'grid-cell grid-header';
+      header.innerText = cat;
+      grid.appendChild(header);
+    });
+
+    // Fill the grid with services
+    services.forEach((service, index) => {
+      const cell = document.createElement('div');
+      cell.className = 'grid-cell';
+      cell.innerHTML = `<strong>${service.name}</strong><br>($${service.oneCare} vs $${service.market})<br><span id='counter-${index}'>0 hr</span>`;
+      cell.setAttribute('data-tooltip', `${service.name} in ${service.category}`);
+      cell.addEventListener('click', () => {
+        clickCounts[index] += 1;
+        cell.classList.add('clicked');
+        document.getElementById(`counter-${index}`).innerText = `${clickCounts[index]} hr`;
+        updateTotals();
+      });
+      grid.appendChild(cell);
+    });
+
+    function updateTotals() {
+      totalOneCare = 0;
+      totalMarket = 0;
+      logoBar.innerHTML = '';
+
+      services.forEach((s, i) => {
+        const count = clickCounts[i];
+        if (count > 0) {
+          totalOneCare += count * s.oneCare;
+          totalMarket += count * s.market;
+          for (let c = 0; c < count; c++) {
+            const img = document.createElement('img');
+            img.src = s.logo;
+            img.alt = s.name;
+            img.className = 'logo';
+            logoBar.appendChild(img);
+          }
+        }
+      });
+
+      const totalClicks = clickCounts.reduce((a, b) => a + b, 0);
+      const discountRate = totalClicks >= 10 ? 0.2 : totalClicks >= 5 ? 0.1 : 0;
+      const discountedTotal = totalOneCare * (1 - discountRate);
+
+      document.getElementById('oneCareTotal').innerText = discountedTotal.toFixed(2);
+      document.getElementById('marketTotal').innerText = totalMarket.toFixed(2);
+      document.getElementById('savings').innerText = (totalMarket - discountedTotal).toFixed(2);
+      document.getElementById('percentSaved').innerText = ((1 - discountedTotal / totalMarket) * 100).toFixed(1) + '%';
+
+      if (totalClicks > 0) {
+        const oneCareLogo = document.createElement('img');
+        oneCareLogo.src = 'onecare.png';
+        oneCareLogo.alt = 'One Care';
+        oneCareLogo.className = 'logo onecare';
+        logoBar.appendChild(oneCareLogo);
+      }
+    }
+  </script>
+</body>
+</html>
