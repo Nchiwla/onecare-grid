@@ -1,0 +1,205 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>One Care Grid with Discounts</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f7f9fb;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 10px;
+      width: 70%;
+    }
+    .grid-header {
+      background-color: #00897b;
+      color: white;
+      font-weight: bold;
+      text-align: center;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 1rem;
+    }
+    .grid-cell {
+      background: white;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      transition: 0.3s;
+    }
+    .grid-cell:hover {
+      border: 2px solid #7b1fa2;
+      cursor: pointer;
+    }
+    .sidebar {
+      width: 28%;
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .summary {
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    .logos {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 10px 0;
+    }
+    .logo {
+      width: 32px;
+      height: 32px;
+      border-radius: 4px;
+    }
+    canvas {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="grid-container" id="grid"></div>
+  <div class="sidebar">
+    <div class="summary">Average Market Cost: $<span id="marketTotal">0</span></div>
+    <div class="logos" id="marketLogos"></div>
+    <div class="summary" style="color: green">One Care Saving: $<span id="savings">0</span> (<span id="percentSaved">0%</span>)</div>
+    <div class="summary">Your One Care Cost: <img src="https://nchiwla.github.io/onecare-grid/onecare.png" class="logo"> $<span id="oneCareTotal">0</span></div>
+    <canvas id="priceChart" width="260" height="140"></canvas>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const categories = ["Aged Care", "Children", "Pets", "Everyday", "All Abilities", "Students"];
+    const serviceTypes = ["Health", "Daily Support", "Education", "Recreation"];
+
+    const services = [
+      { name: "Nursing", type: "Health", category: "Aged Care", oneCare: 90, market: 110, logo: "bupa.png" },
+      { name: "Pediatric", type: "Health", category: "Children", oneCare: 85, market: 105, logo: "guardian.png" },
+      { name: "Pet Grooming", type: "Health", category: "Pets", oneCare: 60, market: 75, logo: "greencross.png" },
+      { name: "Support Worker", type: "Daily Support", category: "All Abilities", oneCare: 80, market: 95, logo: "ndis.png" },
+      { name: "Tutoring", type: "Education", category: "Students", oneCare: 55, market: 70, logo: "guardian.png" },
+      { name: "Fitness", type: "Health", category: "Everyday", oneCare: 65, market: 80, logo: "jims.png" }
+    ];
+
+    const grid = document.getElementById("grid");
+    let clickCounts = {};
+    let selectedServices = new Set();
+
+    categories.forEach(cat => {
+      const header = document.createElement("div");
+      header.className = "grid-header";
+      header.innerText = cat;
+      grid.appendChild(header);
+    });
+
+    serviceTypes.forEach(type => {
+      categories.forEach(cat => {
+        const s = services.find(x => x.category === cat && x.type === type);
+        const id = `${type}-${cat}`;
+        const cell = document.createElement("div");
+        cell.className = "grid-cell";
+        if (s) {
+          clickCounts[id] = 0;
+          cell.innerHTML = `
+            <strong>${s.name}</strong><br>
+            ($${s.oneCare} vs $${s.market})<br>
+            <button onclick="changeHours('${id}', -1, event)">−</button>
+            <span id="counter-${id}">0 hr</span>
+            <button onclick="changeHours('${id}', 1, event)">+</button>
+          `;
+          cell.dataset.logo = s.logo;
+          cell.dataset.one = s.oneCare;
+          cell.dataset.market = s.market;
+        } else {
+          cell.innerHTML = "<em>N/A</em>";
+        }
+        grid.appendChild(cell);
+      });
+    });
+
+    function changeHours(id, delta, e) {
+      e.stopPropagation();
+      clickCounts[id] = Math.max(0, (clickCounts[id] || 0) + delta);
+      document.getElementById("counter-" + id).innerText = `${clickCounts[id]} hr`;
+      updateTotals();
+    }
+
+    function updateTotals() {
+      let oneCareBase = 0;
+      let marketBase = 0;
+      selectedServices.clear();
+      document.getElementById("marketLogos").innerHTML = "";
+
+      Object.entries(clickCounts).forEach(([id, hrs]) => {
+        if (hrs > 0) {
+          const cell = document.querySelector(`[id="counter-${id}"]`).closest(".grid-cell");
+          const one = +cell.dataset.one;
+          const market = +cell.dataset.market;
+          const logo = cell.dataset.logo;
+          const typeCat = id;
+
+          selectedServices.add(typeCat);
+
+          for (let i = 0; i < hrs; i++) {
+            const img = document.createElement("img");
+            img.src = "https://nchiwla.github.io/onecare-grid/" + logo;
+            img.className = "logo";
+            document.getElementById("marketLogos").appendChild(img);
+          }
+
+          oneCareBase += one * hrs;
+          marketBase += market * hrs;
+        }
+      });
+
+      const totalHours = Object.values(clickCounts).reduce((a,b) => a + b, 0);
+      const uniqueServices = selectedServices.size;
+
+      let discountRate = 1;
+      discountRate -= totalHours * 0.05;
+      discountRate -= uniqueServices * 0.05;
+      discountRate = Math.max(0, discountRate); // cap at 0 to avoid negative
+
+      let discountedTotal = oneCareBase * discountRate;
+      let bundlingBonus = discountedTotal * (uniqueServices * 0.015);
+      let finalTotal = discountedTotal - bundlingBonus;
+
+      const savings = marketBase - finalTotal;
+      const percent = marketBase > 0 ? ((savings / marketBase) * 100).toFixed(1) : "0";
+
+      document.getElementById("marketTotal").innerText = marketBase.toFixed(2);
+      document.getElementById("oneCareTotal").innerText = finalTotal.toFixed(2);
+      document.getElementById("savings").innerText = savings.toFixed(2);
+      document.getElementById("percentSaved").innerText = percent + "%";
+
+      const ctx = document.getElementById("priceChart").getContext("2d");
+      if (window.bar) window.bar.destroy();
+      window.bar = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['Market Price', 'One Care'],
+          datasets: [{
+            label: 'Cost',
+            data: [marketBase, finalTotal],
+            backgroundColor: ['#ef5350', '#4caf50']
+          }]
+        },
+        options: {
+          plugins: { legend: { display: false }},
+          scales: { y: { beginAtZero: true }}
+        }
+      });
+    }
+  </script>
+</body>
+</html>
